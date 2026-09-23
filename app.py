@@ -11,6 +11,7 @@ import resend
 app = Flask(__name__, template_folder=".")
 app.secret_key = os.environ.get("SECRET_KEY", "CHANGE-ME-IN-PRODUCTION")
 DATABASE_URL = os.environ.get("DATABASE_URL")
+resend.api_key = os.environ.get("RESEND_API_KEY")
 
 class DBWrap:
     def __init__(self):
