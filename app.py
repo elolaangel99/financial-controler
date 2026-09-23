@@ -110,7 +110,7 @@ def send_welcome_email(email):
         <p>¡Gracias por formar parte!</p>
         <p><strong>Financial Controler</strong></p>
         """
-        )
+    })
 
 def login_required(fn):
     @wraps(fn)
