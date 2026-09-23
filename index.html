@@ -1,0 +1,205 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Financial Controler — Beta</title><style>
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#182235;background:#f4f6f9}*{box-sizing:border-box}
+body{margin:0}.wrap{max-width:980px;margin:auto;padding:18px}.top{background:#111827;color:white;border-radius:22px;padding:22px}.top h1{margin:0 0 18px}.money{font-size:38px;font-weight:850}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}.metric{background:#ffffff12;padding:12px;border-radius:13px}.metric b{display:block;margin-top:5px}.nav{display:flex;gap:8px;overflow:auto;margin:14px 0}.nav button{border:0;padding:10px 13px;border-radius:11px;background:#e6e9ef}.nav button.active{background:#111827;color:#fff}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.card{background:#fff;border-radius:18px;padding:16px;box-shadow:0 2px 12px #0000000b;margin-bottom:12px}.row{display:flex;justify-content:space-between;gap:10px;align-items:center}.btn{border:0;border-radius:10px;padding:10px 13px;background:#e8ebf0}.primary{background:#111827;color:white}.green{color:#16803d}.red{color:#c62828}.muted{color:#707b8d;font-size:12px}.page{display:none}.page.active{display:block}.tx{padding:10px 0;border-bottom:1px solid #eee}.modal{display:none;position:fixed;inset:0;background:#0008;align-items:end;justify-content:center}.sheet{background:#fff;width:min(560px,100%);padding:20px;border-radius:22px 22px 0 0}.sheet input,.sheet select{width:100%;padding:12px;margin:5px 0 12px;border:1px solid #ddd;border-radius:10px;font-size:16px}.sheet button{width:100%;padding:13px;border:0;border-radius:11px}.error{color:#b91c1c;margin:8px 0}.auth{max-width:420px;margin:50px auto}.hide{display:none!important}@media(max-width:600px){.grid{grid-template-columns:1fr}.metrics{grid-template-columns:1fr 1fr}.metrics .metric:last-child{grid-column:span 2}}
+</style></head><body><div class="wrap">
+<div id="auth" class="auth card"><h2>Financial Controler</h2><p>Tu panel financiero personal, en un solo sitio.</p><input id="email" placeholder="Email" type="email" style="width:100%;padding:12px"><input id="password" placeholder="Contraseña (8+ caracteres)" type="password" style="width:100%;padding:12px;margin-top:8px"><div id="err" class="error"></div><div style="display:flex;gap:8px"><button class="btn primary" id="login">Entrar</button><button class="btn" id="register">Crear cuenta</button></div></div>
+<div id="app" class="hide"><div class="top"><div class="muted" style="color:#fff">FINANZAS PERSONALES</div><h1>Mi patrimonio</h1><div class="money" id="net">0 €</div><div class="muted" style="color:#fff">Patrimonio neto</div><div class="metrics"><div class="metric"><span>Ingresos</span><b id="inc">0 €</b></div><div class="metric"><span>Gastos</span><b id="exp">0 €</b></div><div class="metric"><span>Ahorro</span><b id="sav">0 €</b></div></div></div>
+<div class="nav"><button class="active" data-p="dash">Resumen</button><button data-p="accounts">Cuentas</button><button data-p="budget">Presupuesto</button><button data-p="goals">Objetivos</button><button data-p="invest">Inversiones</button><button data-p="fixed">Fijos</button><button data-p="import">Importar</button><button id="logout">Salir</button></div>
+<section id="dash" class="page active"><div class="card"><h3>Últimos movimientos</h3><div id="tx"></div><button class="btn primary" id="newtx">+ Movimiento</button></div></section>
+<section id="accounts" class="page"><div class="row"><h3>Cuentas</h3><button class="btn primary" id="newacc">+ Cuenta</button></div><div id="accountsList" class="grid"></div></section>
+<section id="budget" class="page"><div class="row"><h3>Presupuesto</h3><button class="btn primary" id="newbudget">+ Límite</button></div><div id="budgets"></div></section>
+<section id="goals" class="page"><div class="row"><h3>Objetivos</h3><button class="btn primary" id="newgoal">+ Objetivo</button></div><div id="goals"></div></section>
+<section id="invest" class="page"><div class="row"><h3>Inversiones</h3><button class="btn primary" id="newinv">+ Activo</button></div><div id="investments"></div></section>
+<section id="fixed" class="page"><div class="row"><h3>Ingresos / gastos fijos</h3><button class="btn primary" id="newfixed">+ Fijo</button></div><div id="fixeds"></div></section>
+<section id="import" class="page"><div class="card"><h3>Importar movimientos</h3><p class="muted">CSV: date,kind,amount,category,description,account</p><input id="csv" type="file" accept=".csv"><button class="btn primary" id="doimport">Importar CSV</button><p id="importmsg"></p></div></section>
+</div></div>
+<div class="modal" id="modal"><div class="sheet"><button class="btn" id="close">Cerrar</button><div id="form"></div></div></div>
+<script>
+const $ = (id) => document.getElementById(id);
+const eur = (n) => new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(Number(n)||0);
+let state = null;
+
+async function api(url, opt={}) {
+  const opts = {...opt, headers:{...(opt.headers||{})}};
+  if (opts.body && typeof opts.body !== 'string' && !(opts.body instanceof FormData)) {
+    opts.headers['Content-Type']='application/json';
+    opts.body=JSON.stringify(opts.body);
+  }
+  const r=await fetch(url,opts);
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error||`Error ${r.status}`);
+  return j;
+}
+
+async function boot(){
+  try{
+    await api('/api/me');
+    showApp();
+    await refresh();
+  }catch(e){
+    $('auth').classList.remove('hide');
+    $('app').classList.add('hide');
+  }
+}
+function showApp(){
+  $('auth').classList.add('hide');
+  $('app').classList.remove('hide');
+}
+function showError(msg){ $('err').textContent=msg||'Ha ocurrido un error.'; }
+
+async function refresh(){
+  state=await api('/api/dashboard');
+  $('net').textContent=eur(state.net_worth);
+  $('inc').textContent=eur(state.income);
+  $('exp').textContent=eur(state.expense);
+  $('sav').textContent=eur(state.saving);
+
+  const accountById=new Map(state.accounts.map(a=>[a.id,a]));
+  $('tx').innerHTML=state.transactions.slice(0,12).map(x=>`
+    <div class="tx row">
+      <div><b>${esc(x.description||x.category)}</b>
+      <div class="muted">${esc(x.category)} · ${esc(accountById.get(x.account_id)?.name||'')} · ${esc(x.tx_date)}</div></div>
+      <b class="${x.kind==='income'?'green':'red'}">${x.kind==='income'?'+':'−'}${eur(x.amount)}</b>
+    </div>`).join('') || '<p class="muted">Sin movimientos.</p>';
+
+  renderAccounts();
+  await loadAll();
+}
+function esc(s){
+  return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function renderAccounts(){
+  $('accountsList').innerHTML=state.accounts.map(a=>`
+    <div class="card"><b>${esc(a.name)}</b><div class="muted">${esc(a.kind)}</div>
+    <h2>${eur(a.balance)}</h2><button class="btn" type="button" data-edit-account="${a.id}">Editar saldo</button></div>`).join('');
+  document.querySelectorAll('[data-edit-account]').forEach(b=>b.addEventListener('click',()=>editAcc(Number(b.dataset.editAccount))));
+}
+async function loadAll(){
+  const [b,g,r]=await Promise.all([api('/api/budgets'),api('/api/goals'),api('/api/recurring')]);
+  $('budgets').innerHTML=b.budgets.map(x=>`<div class="card"><div class="row"><b>${esc(x.category)}</b><span>${eur(x.spent)} / ${eur(x.monthly_limit)}</span></div></div>`).join('')||'<div class="card">Sin presupuestos.</div>';
+  $('goals').innerHTML=g.goals.map(x=>`<div class="card"><div class="row"><b>${esc(x.name)}</b><b>${x.target?Math.round(x.current/x.target*100):0}%</b></div><div>${eur(x.current)} de ${eur(x.target)}</div></div>`).join('')||'<div class="card">Sin objetivos.</div>';
+  $('fixeds').innerHTML=r.recurring.map(x=>`<div class="card row"><div><b>${esc(x.name)}</b><div class="muted">${esc(x.category)} · día ${x.day_of_month}</div></div><b class="${x.kind==='income'?'green':'red'}">${x.kind==='income'?'+':'−'}${eur(x.amount)}</b></div>`).join('')||'<div class="card">Sin movimientos fijos.</div>';
+  renderInvest();
+}
+function renderInvest(){
+  $('investments').innerHTML=(state.investments||[]).map(x=>`
+    <div class="card row"><div><b>${esc(x.name)}</b><div class="muted">${x.units} uds · coste ${eur(x.avg_price)}</div></div>
+    <div><b>${eur(x.units*x.current_price)}</b><br><button class="btn" type="button" data-price="${x.id}">Actualizar</button></div></div>`).join('')||'<div class="card">Sin inversiones.</div>';
+  document.querySelectorAll('[data-price]').forEach(b=>b.addEventListener('click',()=>updatePrice(Number(b.dataset.price))));
+}
+function openModal(html){ $('form').innerHTML=html; $('modal').style.display='flex'; }
+function closeModal(){ $('modal').style.display='none'; }
+
+$('login').addEventListener('click',async()=>{
+  showError('');
+  try{
+    await api('/api/login',{method:'POST',body:{email:$('email').value,password:$('password').value}});
+    showApp(); await refresh();
+  }catch(e){showError(e.message);}
+});
+$('register').addEventListener('click',async()=>{
+  showError('');
+  try{
+    await api('/api/register',{method:'POST',body:{email:$('email').value,password:$('password').value}});
+    showApp(); await refresh();
+  }catch(e){showError(e.message);}
+});
+$('logout').addEventListener('click',async()=>{await api('/api/logout',{method:'POST'});location.reload();});
+$('close').addEventListener('click',closeModal);
+
+document.querySelectorAll('.nav button[data-p]').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.nav button[data-p]').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); $(b.dataset.p).classList.add('active');
+}));
+
+$('newtx').addEventListener('click',()=>{
+  const accountOptions=state.accounts.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');
+  openModal(`<h2>Nuevo movimiento</h2>
+  <label>Tipo</label><select id="fType"><option value="expense">Gasto</option><option value="income">Ingreso</option></select>
+  <label>Importe</label><input id="fAmount" type="number" min="0.01" step=".01">
+  <label>Categoría</label><input id="fCategory" value="Otros">
+  <label>Descripción</label><input id="fDescription">
+  <label>Fecha</label><input id="fDate" type="date" value="${new Date().toISOString().slice(0,10)}">
+  <label>Cuenta</label><select id="fAccount">${accountOptions}</select>
+  <button class="primary" type="button" id="saveTx">Guardar</button>`);
+  $('saveTx').addEventListener('click',async()=>{
+    try{
+      const amount=Number($('fAmount').value);
+      if(!(amount>0)) return alert('Introduce un importe válido.');
+      await api('/api/transactions',{method:'POST',body:{
+        kind:$('fType').value,amount,category:$('fCategory').value||'Otros',
+        description:$('fDescription').value,tx_date:$('fDate').value,account_id:Number($('fAccount').value)
+      }});
+      closeModal(); await refresh();
+    }catch(e){alert(e.message);}
+  });
+});
+
+$('newacc').addEventListener('click',()=>{
+  openModal(`<h2>Nueva cuenta</h2><label>Nombre</label><input id="aName"><label>Tipo</label><input id="aKind" value="Banco"><label>Saldo inicial</label><input id="aBalance" type="number" step=".01"><button class="primary" type="button" id="saveAcc">Crear</button>`);
+  $('saveAcc').addEventListener('click',async()=>{
+    try{
+      if(!$('aName').value.trim()) return alert('Introduce un nombre.');
+      await api('/api/accounts',{method:'POST',body:{name:$('aName').value.trim(),kind:$('aKind').value||'Banco',balance:Number($('aBalance').value)||0}});
+      closeModal(); await refresh();
+    }catch(e){alert(e.message);}
+  });
+});
+async function editAcc(id){
+  const v=prompt('Nuevo saldo:');
+  if(v!==null && !isNaN(Number(v))){await api('/api/accounts/'+id,{method:'PATCH',body:{balance:Number(v)}});await refresh();}
+}
+
+$('newbudget').addEventListener('click',()=>{
+  openModal(`<h2>Presupuesto</h2><label>Categoría</label><input id="bCategory"><label>Límite mensual</label><input id="bLimit" type="number" min="0"><button class="primary" type="button" id="saveBudget">Guardar</button>`);
+  $('saveBudget').addEventListener('click',async()=>{
+    if(!Number($('bLimit').value)>0 || !$('bCategory').value.trim()) return alert('Completa categoría y límite.');
+    await api('/api/budgets',{method:'POST',body:{category:$('bCategory').value.trim(),monthly_limit:Number($('bLimit').value)}});
+    closeModal();await loadAll();
+  });
+});
+
+$('newgoal').addEventListener('click',()=>{
+  openModal(`<h2>Objetivo</h2><label>Nombre</label><input id="gName"><label>Objetivo €</label><input id="gTarget" type="number" min="0"><label>Actual €</label><input id="gCurrent" type="number" min="0"><label>Fecha</label><input id="gDate" type="date"><button class="primary" type="button" id="saveGoal">Crear</button>`);
+  $('saveGoal').addEventListener('click',async()=>{
+    if(!$('gName').value.trim() || !(Number($('gTarget').value)>0)) return alert('Completa nombre y objetivo.');
+    await api('/api/goals',{method:'POST',body:{name:$('gName').value.trim(),target:Number($('gTarget').value),current:Number($('gCurrent').value)||0,target_date:$('gDate').value}});
+    closeModal();await loadAll();
+  });
+});
+
+$('newinv').addEventListener('click',()=>{
+  openModal(`<h2>Inversión</h2><label>Activo</label><input id="iName"><label>Unidades</label><input id="iUnits" type="number" min="0" step=".0001"><label>Precio medio</label><input id="iAvg" type="number" min="0" step=".01"><label>Precio actual</label><input id="iPrice" type="number" min="0" step=".01"><button class="primary" type="button" id="saveInv">Añadir</button>`);
+  $('saveInv').addEventListener('click',async()=>{
+    if(!$('iName').value.trim()) return alert('Introduce el activo.');
+    await api('/api/investments',{method:'POST',body:{name:$('iName').value.trim(),units:Number($('iUnits').value)||0,avg_price:Number($('iAvg').value)||0,current_price:Number($('iPrice').value)||0}});
+    closeModal();await refresh();
+  });
+});
+async function updatePrice(id){
+  const v=prompt('Precio actual:');
+  if(v!==null&&!isNaN(Number(v))){await api('/api/investments/'+id,{method:'PATCH',body:{current_price:Number(v)}});await refresh();}
+}
+
+$('newfixed').addEventListener('click',()=>{
+  openModal(`<h2>Movimiento fijo</h2><label>Tipo</label><select id="rKind"><option value="expense">Gasto</option><option value="income">Ingreso</option></select><label>Nombre</label><input id="rName"><label>Importe mensual</label><input id="rAmount" type="number" min="0"><label>Categoría</label><input id="rCategory"><label>Día</label><input id="rDay" type="number" min="1" max="31" value="1"><button class="primary" type="button" id="saveRecurring">Guardar</button>`);
+  $('saveRecurring').addEventListener('click',async()=>{
+    if(!$('rName').value.trim() || !(Number($('rAmount').value)>0)) return alert('Completa nombre e importe.');
+    await api('/api/recurring',{method:'POST',body:{kind:$('rKind').value,name:$('rName').value.trim(),amount:Number($('rAmount').value),category:$('rCategory').value||'Otros',day_of_month:Number($('rDay').value)||1}});
+    closeModal();await loadAll();
+  });
+});
+
+$('doimport').addEventListener('click',async()=>{
+  const f=$('csv').files[0];
+  if(!f) return alert('Selecciona un CSV.');
+  const fd=new FormData();fd.append('file',f);
+  const r=await fetch('/api/import-csv',{method:'POST',body:fd});
+  const j=await r.json();
+  $('importmsg').textContent=j.added!==undefined?`Importados ${j.added} movimientos.`:(j.error||'Error');
+  await refresh();
+});
+boot();
+</script></body></html>
