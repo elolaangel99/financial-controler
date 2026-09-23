@@ -135,7 +135,7 @@ def send_welcome_email(email):
         <p>¡Gracias por confiar en nosotros!</p>
         <p><strong>Financial Controler</strong></p>
         """
-    )
+    })
 
 
 @app.post("/api/waitlist")
