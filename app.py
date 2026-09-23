@@ -147,8 +147,8 @@ def waitlist():
             pass
 
     try:
-    send_welcome_email(email)
-except Exception as e:
+        send_welcome_email(email)
+    except Exception as e:
     print("Error enviando email:", e)
 
 return jsonify(ok=True,message="Te hemos apuntado a la beta.")
