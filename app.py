@@ -97,8 +97,6 @@ def init_db():
 def setup():
     init_db()
 
-    })
-
 def login_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
