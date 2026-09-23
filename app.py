@@ -94,6 +94,24 @@ def init_db():
 def setup():
     init_db()
 
+def send_welcome_email(email):
+    if not resend.api_key:
+        return
+
+    resend.Emails.send({
+        "from": "onboarding@resend.dev",
+        "to": [email],
+        "subject": "Bienvenido a Financial Controler 🚀",
+        "html": """
+        <h1>¡Bienvenido a Financial Controler!</h1>
+        <p>Gracias por apuntarte a nuestra beta.</p>
+        <p>Estamos preparando una herramienta para ayudarte a controlar tus finanzas de forma sencilla.</p>
+        <p>Muy pronto podrás empezar a probar todas las funciones.</p>
+        <p>¡Gracias por formar parte!</p>
+        <p><strong>Financial Controler</strong></p>
+        """
+        )
+
 def login_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
