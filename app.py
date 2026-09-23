@@ -143,9 +143,15 @@ def waitlist():
         c.execute("INSERT INTO waitlist(email) VALUES(?)",(email,))
         c.commit()
     except psycopg.errors.UniqueViolation:
-        c.rollback()
-        pass
-    return jsonify(ok=True,message="Te hemos apuntado a la beta.")
+    c.rollback()
+    pass
+
+try:
+    send_welcome_email(email)
+except Exception as e:
+    print("Error enviando email:", e)
+
+return jsonify(ok=True,message="Te hemos apuntado a la beta.")
 
 
 @app.post("/api/register")
