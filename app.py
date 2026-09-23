@@ -11,7 +11,10 @@ import resend
 app = Flask(__name__, template_folder=".")
 app.secret_key = os.environ.get("SECRET_KEY", "CHANGE-ME-IN-PRODUCTION")
 DATABASE_URL = os.environ.get("DATABASE_URL")
-resend.api_key = os.environ.get("RESEND_API_KEY")
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+
+if RESEND_API_KEY:
+    resend.api_key = RESEND_API_KEY
 
 class DBWrap:
     def __init__(self):
@@ -94,22 +97,6 @@ def init_db():
 def setup():
     init_db()
 
-def send_welcome_email(email):
-    if not resend.api_key:
-        return
-
-    resend.Emails.send({
-        "from": "onboarding@resend.dev",
-        "to": [email],
-        "subject": "Bienvenido a Financial Controler 🚀",
-        "html": """
-        <h1>¡Bienvenido a Financial Controler!</h1>
-        <p>Gracias por apuntarte a nuestra beta.</p>
-        <p>Estamos preparando una herramienta para ayudarte a controlar tus finanzas de forma sencilla.</p>
-        <p>Muy pronto podrás empezar a probar todas las funciones.</p>
-        <p>¡Gracias por formar parte!</p>
-        <p><strong>Financial Controler</strong></p>
-        """
     })
 
 def login_required(fn):
@@ -132,47 +119,103 @@ def landing():
 def app_page():
     return render_template("index.html", logged=bool(session.get("uid")))
 
+def send_welcome_email(email):
+    if not RESEND_API_KEY:
+        raise RuntimeError("RESEND_API_KEY no está configurada")
+
+    return resend.Emails.send({
+        "from": "onboarding@resend.dev",
+        "to": [email],
+        "subject": "Bienvenido a Financial Controler 🚀",
+        "html": """
+        <h2>¡Bienvenido a Financial Controler! 🚀</h2>
+        <p>Gracias por apuntarte a nuestra beta.</p>
+        <p>Te avisaremos cuando puedas empezar a utilizar la aplicación.</p>
+        <p>Estamos construyendo una herramienta sencilla para ayudarte a controlar
+        tus ingresos, gastos, presupuestos, objetivos e inversiones.</p>
+        <br>
+        <p>¡Gracias por confiar en nosotros!</p>
+        <p><strong>Financial Controler</strong></p>
+        """
+    )
+
+
 @app.post("/api/waitlist")
 def waitlist():
-    data=request.get_json() or {}
-    email=str(data.get("email","")).strip().lower()
+    data = request.get_json() or {}
+    email = str(data.get("email", "")).strip().lower()
+
     if "@" not in email or "." not in email.split("@")[-1]:
-        return jsonify(error="Introduce un email válido."),400
-    c=db()
+        return jsonify(error="Introduce un email válido."), 400
+
+    c = db()
+    is_new = True
+
     try:
-            c.execute("INSERT INTO waitlist(email) VALUES(%s)",(email,))
-            c.commit()
+        c.execute(
+            "INSERT INTO waitlist(email) VALUES(?)",
+            (email,)
+        )
+        c.commit()
+
     except psycopg.errors.UniqueViolation:
-            c.rollback()
-            pass
+        c.rollback()
+        is_new = False
 
-    try:
-        send_welcome_email(email)
-    except Exception as e:
-        print("Error enviando email:", e)
+    if is_new:
+        try:
+            send_welcome_email(email)
+        except Exception as e:
+            print("Error enviando email:", e)
 
-return jsonify(ok=True,message="Te hemos apuntado a la beta.")
+    return jsonify(
+        ok=True,
+        message="Te hemos apuntado a la beta."
+    )
 
 
 @app.post("/api/register")
 def register():
-    data=request.get_json() or {}
-    email=str(data.get("email","")).strip().lower()
-    pw=str(data.get("password",""))
-    if "@" not in email or len(pw)<8:
-        return jsonify(error="Email válido y contraseña de 8 caracteres mínimo."),400
+    data = request.get_json() or {}
+    email = str(data.get("email", "")).strip().lower()
+    pw = str(data.get("password", ""))
+
+    if "@" not in email or len(pw) < 8:
+        return jsonify(
+            error="Email válido y contraseña de 8 caracteres mínimo."
+        ), 400
+
+    c = db()
+
     try:
-        cur=db().execute("INSERT INTO users(email,password_hash) VALUES(?,?) RETURNING id",
-                         (email,generate_password_hash(pw)))
-        uid=cur.fetchone()["id"]
-        for name,kind in [("Cuenta principal","Banco"),("Revolut","Banco"),("Trade Republic","Ahorro / inversión"),("Efectivo","Efectivo")]:
-            db().execute("INSERT INTO accounts(user_id,name,kind,balance) VALUES(?,?,?,0)",(uid,name,kind))
-        db().commit()
-        session["uid"]=uid
+        cur = c.execute(
+            "INSERT INTO users(email,password_hash) VALUES(?,?) RETURNING id",
+            (email, generate_password_hash(pw))
+        )
+
+        uid = cur.fetchone()["id"]
+
+        for name, kind in [
+            ("Cuenta principal", "Banco"),
+            ("Revolut", "Banco"),
+            ("Trade Republic", "Ahorro / inversión"),
+            ("Efectivo", "Efectivo")
+        ]:
+            c.execute(
+                "INSERT INTO accounts(user_id,name,kind,balance) VALUES(?,?,?,0)",
+                (uid, name, kind)
+            )
+
+        c.commit()
+        session["uid"] = uid
+
         return jsonify(ok=True)
+
     except psycopg.errors.UniqueViolation:
         c.rollback()
-        return jsonify(error="Ese email ya está registrado."),409
+        return jsonify(
+            error="Ese email ya está registrado."
+        ), 409
 
 @app.post("/api/login")
 def login():
