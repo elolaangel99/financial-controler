@@ -1,19 +1,19 @@
-# Publicar Financial Controler Beta
+# Despliegue de Financial Controler con PostgreSQL en Render
 
-## Qué necesitas
-1. Una cuenta de GitHub.
-2. Una cuenta de Render.
+1. En Render crea primero **New > Postgres**. Para una prueba inicial puedes usar Free, pero Render indica que los Postgres Free caducan a los 30 días; no los uses para datos reales de producción.
+2. Pon nombre: `financial-controler-db`.
+3. Elige una región cercana a tu web service y crea la base de datos.
+4. Cuando esté creada, abre la base de datos y copia **Internal Database URL**.
+5. Vuelve a `financial-controler-beta` > Environment.
+6. Añade `DATABASE_URL` con esa Internal Database URL.
+7. Asegúrate de tener `SECRET_KEY` generada por Render.
+8. En Settings/Build & Deploy comprueba:
+   - Build: `pip install -r requirements.txt`
+   - Start: `gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 app:app`
+   - Branch: `main`
+   - Language: Python 3
+9. Guarda y haz **Manual Deploy > Deploy latest commit**.
+10. Abre la URL `.onrender.com` y comprueba `/health`: debe devolver `{"status":"ok"}`.
 
-## Pasos
-1. Crea un repositorio nuevo en GitHub llamado `financial-controler-beta`.
-2. Sube **el contenido de esta carpeta**, no el ZIP entero dentro del repositorio.
-3. En Render, crea un nuevo servicio desde ese repositorio.
-4. Si Render detecta `render.yaml`, usa el Blueprint y confirma la creación.
-5. Espera al despliegue. Render te dará una URL `*.onrender.com`.
-6. Abre la URL y prueba `/health`: debe devolver `{"status":"ok"}`.
-
-## Importante
-- Esta beta usa SQLite y un disco persistente de 1 GB.
-- No introduzcas datos bancarios reales todavía.
-- Antes de cobrar o almacenar datos sensibles habrá que migrar a PostgreSQL y reforzar seguridad, RGPD, recuperación de contraseña, correo, backups y observabilidad.
-- No compartas la `SECRET_KEY`. Render la genera automáticamente con el `render.yaml`.
+### Importante
+La instancia web Free puede apagarse tras 15 minutos sin tráfico y tardar alrededor de un minuto en despertar. Render también indica que el Postgres Free expira a los 30 días. Para una beta de prueba sirve; antes de meter usuarios reales hay que pasar a una configuración persistente y revisar seguridad, backups, RGPD y recuperación de cuenta.

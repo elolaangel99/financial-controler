@@ -1,19 +1,35 @@
 
 from flask import Flask, request, jsonify, session, redirect, render_template, g
-import sqlite3, os, csv, io
+import os, csv, io
+import psycopg
+from psycopg.rows import dict_row
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 from datetime import date
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "CHANGE-ME-IN-PRODUCTION")
-DB = os.environ.get("DATABASE_PATH", os.path.join(os.path.dirname(__file__), "finanzas.db"))
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+class DBWrap:
+    def __init__(self):
+        self.conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
+    def execute(self, sql, args=()):
+        # Keep the existing application SQL style while using PostgreSQL.
+        return self.conn.execute(sql.replace("?", "%s"), args)
+    def executescript(self, sql):
+        for stmt in sql.split(";"):
+            stmt=stmt.strip()
+            if stmt:
+                self.conn.execute(stmt)
+    def commit(self): self.conn.commit()
+    def close(self): self.conn.close()
 
 def db():
     if "db" not in g:
-        g.db = sqlite3.connect(DB)
-        g.db.row_factory = sqlite3.Row
-        g.db.execute("PRAGMA foreign_keys=ON")
+        if not DATABASE_URL:
+            raise RuntimeError("DATABASE_URL no está configurada")
+        g.db = DBWrap()
     return g.db
 
 @app.teardown_appcontext
@@ -25,46 +41,49 @@ def init_db():
     c=db()
     c.executescript("""
     CREATE TABLE IF NOT EXISTS users(
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS accounts(
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      name TEXT NOT NULL, kind TEXT NOT NULL, balance REAL NOT NULL DEFAULT 0
+      name TEXT NOT NULL, kind TEXT NOT NULL, balance DOUBLE PRECISION NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS transactions(
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
       kind TEXT NOT NULL CHECK(kind IN ('income','expense')),
-      amount REAL NOT NULL CHECK(amount >= 0),
+      amount DOUBLE PRECISION NOT NULL CHECK(amount >= 0),
       category TEXT NOT NULL, description TEXT, tx_date TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS budgets(
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      category TEXT NOT NULL, monthly_limit REAL NOT NULL
+      category TEXT NOT NULL, monthly_limit DOUBLE PRECISION NOT NULL
     );
     CREATE TABLE IF NOT EXISTS goals(
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      name TEXT NOT NULL, target REAL NOT NULL, current REAL NOT NULL DEFAULT 0,
+      name TEXT NOT NULL, target DOUBLE PRECISION NOT NULL, current DOUBLE PRECISION NOT NULL DEFAULT 0,
       target_date TEXT
     );
     CREATE TABLE IF NOT EXISTS recurring(
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       kind TEXT NOT NULL CHECK(kind IN ('income','expense')),
-      name TEXT NOT NULL, amount REAL NOT NULL, category TEXT NOT NULL,
+      name TEXT NOT NULL, amount DOUBLE PRECISION NOT NULL, category TEXT NOT NULL,
       day_of_month INTEGER NOT NULL DEFAULT 1
     );
     CREATE TABLE IF NOT EXISTS investments(
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      name TEXT NOT NULL, units REAL NOT NULL, avg_price REAL NOT NULL, current_price REAL NOT NULL
+      name TEXT NOT NULL, units DOUBLE PRECISION NOT NULL, avg_price DOUBLE PRECISION NOT NULL, current_price DOUBLE PRECISION NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS waitlist(
+      id SERIAL PRIMARY KEY, email TEXT UNIQUE NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
     c.commit()
@@ -100,11 +119,11 @@ def waitlist():
     if "@" not in email or "." not in email.split("@")[-1]:
         return jsonify(error="Introduce un email válido."),400
     c=db()
-    c.execute("CREATE TABLE IF NOT EXISTS waitlist(id INTEGER PRIMARY KEY AUTOINCREMENT,email TEXT UNIQUE NOT NULL,created_at TEXT DEFAULT CURRENT_TIMESTAMP)")
     try:
         c.execute("INSERT INTO waitlist(email) VALUES(?)",(email,))
         c.commit()
-    except sqlite3.IntegrityError:
+    except psycopg.errors.UniqueViolation:
+        c.rollback()
         pass
     return jsonify(ok=True,message="Te hemos apuntado a la beta.")
 
@@ -117,15 +136,16 @@ def register():
     if "@" not in email or len(pw)<8:
         return jsonify(error="Email válido y contraseña de 8 caracteres mínimo."),400
     try:
-        cur=db().execute("INSERT INTO users(email,password_hash) VALUES(?,?)",
+        cur=db().execute("INSERT INTO users(email,password_hash) VALUES(?,?) RETURNING id",
                          (email,generate_password_hash(pw)))
-        uid=cur.lastrowid
+        uid=cur.fetchone()["id"]
         for name,kind in [("Cuenta principal","Banco"),("Revolut","Banco"),("Trade Republic","Ahorro / inversión"),("Efectivo","Efectivo")]:
             db().execute("INSERT INTO accounts(user_id,name,kind,balance) VALUES(?,?,?,0)",(uid,name,kind))
         db().commit()
         session["uid"]=uid
         return jsonify(ok=True)
-    except sqlite3.IntegrityError:
+    except psycopg.errors.UniqueViolation:
+        c.rollback()
         return jsonify(error="Ese email ya está registrado."),409
 
 @app.post("/api/login")
@@ -170,9 +190,10 @@ def add_account():
     d=request.get_json() or {}
     name=str(d.get("name","")).strip()
     if not name:return jsonify(error="Nombre requerido"),400
-    cur=db().execute("INSERT INTO accounts(user_id,name,kind,balance) VALUES(?,?,?,?)",
+    cur=db().execute("INSERT INTO accounts(user_id,name,kind,balance) VALUES(?,?,?,?) RETURNING id",
                      (session["uid"],name,d.get("kind","Banco"),float(d.get("balance",0))))
-    db().commit(); return jsonify(id=cur.lastrowid)
+    aid=cur.fetchone()["id"]
+    db().commit(); return jsonify(id=aid)
 
 @app.patch("/api/accounts/<int:aid>")
 @login_required

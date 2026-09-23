@@ -11,3 +11,7 @@ Orden del proyecto:
 Esta versión incluye landing comercial, lista de espera y el núcleo financiero de la V3.
 
 IMPORTANTE: todavía es un MVP. No cobrar ni conectar bancos reales hasta completar seguridad, HTTPS, base de datos de producción, backups, recuperación/verificación de cuenta, RGPD, textos legales y pagos.
+
+
+## Beta online
+Esta versión usa PostgreSQL mediante `DATABASE_URL`. En Render crea un Postgres y copia su Internal Database URL en la variable `DATABASE_URL` del Web Service.
