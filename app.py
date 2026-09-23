@@ -300,8 +300,6 @@ def import_csv():
         except Exception: pass
     db().commit(); return jsonify(added=added)
 
-@app.get("/health")
-def health(): return {"status":"ok"}
 
 if __name__=="__main__":
     app.run(host="0.0.0.0",port=int(os.environ.get("PORT",5000)),debug=False)
