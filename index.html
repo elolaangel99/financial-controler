@@ -9,7 +9,7 @@ body{margin:0}.wrap{max-width:980px;margin:auto;padding:18px}.top{background:#11
 <section id="dash" class="page active"><div class="card"><h3>Últimos movimientos</h3><div id="tx"></div><button class="btn primary" id="newtx">+ Movimiento</button></div></section>
 <section id="accounts" class="page"><div class="row"><h3>Cuentas</h3><button class="btn primary" id="newacc">+ Cuenta</button></div><div id="accountsList" class="grid"></div></section>
 <section id="budget" class="page"><div class="row"><h3>Presupuesto</h3><button class="btn primary" id="newbudget">+ Límite</button></div><div id="budgets"></div></section>
-<section id="goals" class="page"><div class="row"><h3>Objetivos</h3><button class="btn primary" id="newgoal">+ Objetivo</button></div><div id="goals"></div></section>
+<section id="goals" class="page"><div class="row"><h3>Objetivos</h3><button class="btn primary" id="newgoal">+ Objetivo</button></div><div id="goalsList"></div></section>
 <section id="invest" class="page"><div class="row"><h3>Inversiones</h3><button class="btn primary" id="newinv">+ Activo</button></div><div id="investments"></div></section>
 <section id="fixed" class="page"><div class="row"><h3>Ingresos / gastos fijos</h3><button class="btn primary" id="newfixed">+ Fijo</button></div><div id="fixeds"></div></section>
 <section id="import" class="page"><div class="card"><h3>Importar movimientos</h3><p class="muted">CSV: date,kind,amount,category,description,account</p><input id="csv" type="file" accept=".csv"><button class="btn primary" id="doimport">Importar CSV</button><p id="importmsg"></p></div></section>
@@ -78,7 +78,7 @@ function renderAccounts(){
 async function loadAll(){
   const [b,g,r]=await Promise.all([api('/api/budgets'),api('/api/goals'),api('/api/recurring')]);
   $('budgets').innerHTML=b.budgets.map(x=>`<div class="card"><div class="row"><b>${esc(x.category)}</b><span>${eur(x.spent)} / ${eur(x.monthly_limit)}</span></div></div>`).join('')||'<div class="card">Sin presupuestos.</div>';
-  $('goals').innerHTML=g.goals.map(x=>`<div class="card"><div class="row"><b>${esc(x.name)}</b><b>${x.target?Math.round(x.current/x.target*100):0}%</b></div><div>${eur(x.current)} de ${eur(x.target)}</div></div>`).join('')||'<div class="card">Sin objetivos.</div>';
+  $('goalsList').innerHTML=g.goals.map(x=>`<div class="card"><div class="row"><b>${esc(x.name)}</b><b>${x.target?Math.round(x.current/x.target*100):0}%</b></div><div>${eur(x.current)} de ${eur(x.target)}</div></div>`).join('')||'<div class="card">Sin objetivos.</div>';
   $('fixeds').innerHTML=r.recurring.map(x=>`<div class="card row"><div><b>${esc(x.name)}</b><div class="muted">${esc(x.category)} · día ${x.day_of_month}</div></div><b class="${x.kind==='income'?'green':'red'}">${x.kind==='income'?'+':'−'}${eur(x.amount)}</b></div>`).join('')||'<div class="card">Sin movimientos fijos.</div>';
   renderInvest();
 }
