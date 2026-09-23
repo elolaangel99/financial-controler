@@ -138,11 +138,11 @@ def waitlist():
     email=str(data.get("email","")).strip().lower()
     if "@" not in email or "." not in email.split("@")[-1]:
         return jsonify(error="Introduce un email válido."),400
-    c=db()
+            c=db()
             try:
             c.execute("INSERT INTO waitlist(email) VALUES(%s)",(email,))
             c.commit()
-        except psycopg.errors.UniqueViolation:
+            except psycopg.errors.UniqueViolation:
             c.rollback()
             pass
 
