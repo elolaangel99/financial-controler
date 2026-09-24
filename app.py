@@ -90,7 +90,16 @@ def init_db():
     CREATE TABLE IF NOT EXISTS waitlist(
       id SERIAL PRIMARY KEY, email TEXT UNIQUE NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE TABLE IF NOT EXISTS beta_testers(
+    id SERIAL PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    access_count INTEGER NOT NULL DEFAULT 0,
+    last_access TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
     """)
+    
     c.commit()
 
 @app.before_request
