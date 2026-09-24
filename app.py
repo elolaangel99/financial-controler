@@ -160,9 +160,15 @@ def waitlist():
 
     try:
         c.execute(
-            "INSERT INTO waitlist(email) VALUES(?)",
-            (email,)
-        )
+    "INSERT INTO waitlist(email) VALUES(?)",
+    (email,)
+)
+
+        c.execute(
+    "INSERT INTO beta_testers(email) VALUES(?) ON CONFLICT (email) DO NOTHING",
+    (email,)
+)
+
         c.commit()
 
     except psycopg.errors.UniqueViolation:
