@@ -39,7 +39,7 @@ document.getElementById('feedbackBtn').addEventListener('click', () => {
         </button>
     `;
 
-    document.getElementById('modal').classList.remove('hide');
+    document.getElementById('modal').style.display = 'flex';
 
     document.getElementById('sendFeedback').addEventListener('click', async () => {
         const rating = Number(document.getElementById('feedbackRating').value);
