@@ -669,6 +669,32 @@ def admin_beta_testers():
     ).fetchall()
 
     return jsonify(testers=[dict(x) for x in testers])
+@app.get("/api/admin/feedback")
+@login_required
+def admin_feedback():
+    user = db().execute(
+        "SELECT email FROM users WHERE id=?",
+        (session["uid"],)
+    ).fetchone()
+
+    if not user or user["email"] != os.environ.get("ADMIN_EMAIL", "").strip().lower():
+        return jsonify(error="No autorizado"), 403
+
+    feedback = db().execute(
+        """
+        SELECT
+            feedback.id,
+            users.email,
+            feedback.rating,
+            feedback.message,
+            feedback.created_at
+        FROM feedback
+        JOIN users ON users.id = feedback.user_id
+        ORDER BY feedback.created_at DESC
+        """
+    ).fetchall()
+
+    return jsonify(feedback=[dict(x) for x in feedback])
 @app.post("/api/admin/beta-testers/update")
 @login_required
 def update_beta_tester():
