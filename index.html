@@ -15,10 +15,49 @@ body{margin:0}.wrap{max-width:980px;margin:auto;padding:18px}.top{background:#11
 <section id="import" class="page"><div class="card"><h3>Importar movimientos</h3><p class="muted">CSV: date,kind,amount,category,description,account</p><input id="csv" type="file" accept=".csv"><button class="btn primary" id="doimport">Importar CSV</button><p id="importmsg"></p></div></section>
 </div></div>
 <div class="modal" id="modal"><div class="sheet"><button class="btn" id="close">Cerrar</button><div id="form"></div></div></div>
-<script>
-document.getElementById("feedbackBtn").addEventListener("click", () => {
-    alert("Gracias por probar Financial Controler. Próximamente podrás enviarnos tu feedback.");
-}); const $ = (id) => document.getElementById(id);
+<script> 
+document.getElementById('feedbackBtn').addEventListener('click', () => {
+    document.getElementById('form').innerHTML = `
+        <h3>Tu feedback</h3>
+        <p>¿Qué te está pareciendo Financial Controler?</p>
+
+        <label>Valoración</label>
+        <select id="feedbackRating">
+            <option value="5">⭐⭐⭐⭐⭐</option>
+            <option value="4">⭐⭐⭐⭐</option>
+            <option value="3">⭐⭐⭐</option>
+            <option value="2">⭐⭐</option>
+            <option value="1">⭐</option>
+        </select>
+
+        <label>Comentario</label>
+        <textarea id="feedbackMessage" rows="5"
+            placeholder="Cuéntanos qué mejorarías..."></textarea>
+
+        <button class="btn primary" id="sendFeedback">
+            Enviar feedback
+        </button>
+    `;
+
+    document.getElementById('modal').classList.remove('hide');
+
+    document.getElementById('sendFeedback').addEventListener('click', async () => {
+        const rating = Number(document.getElementById('feedbackRating').value);
+        const message = document.getElementById('feedbackMessage').value.trim();
+
+        try {
+            await api('/api/feedback', {
+                method: 'POST',
+                body: { rating, message }
+            });
+
+            alert('¡Gracias por tu feedback! 🚀');
+            document.getElementById('modal').classList.add('hide');
+        } catch (e) {
+            alert(e.message);
+        }
+    });
+});
 const eur = (n) => new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(Number(n)||0);
 let state = null;
 
