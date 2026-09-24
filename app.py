@@ -232,24 +232,33 @@ def register():
 
 @app.post("/api/login")
 def login():
-    data=request.get_json() or {}
-    row=db().execute("SELECT * FROM users WHERE email=?",(str(data.get("email","")).strip().lower(),)).fetchone()
-    if not row or not check_password_hash(row["password_hash"],str(data.get("password",""))):
-        return jsonify(error="Credenciales incorrectas."),401
+    data = request.get_json() or {}
+
+    row = db().execute(
+        "SELECT * FROM users WHERE email=?",
+        (str(data.get("email", "")).strip().lower(),)
+    ).fetchone()
+
+    if not row or not check_password_hash(
+        row["password_hash"],
+        str(data.get("password", ""))
+    ):
+        return jsonify(error="Credenciales incorrectas."), 401
+
     session["uid"] = row["id"]
 
-c = db()
-c.execute(
-    "UPDATE beta_testers "
-    "SET access_count = access_count + 1, "
-    "last_access = CURRENT_TIMESTAMP, "
-    "status = 'active' "
-    "WHERE email = ?",
-    (row["email"],)
-)
-c.commit()
+    c = db()
+    c.execute(
+        "UPDATE beta_testers "
+        "SET access_count = access_count + 1, "
+        "last_access = CURRENT_TIMESTAMP, "
+        "status = 'active' "
+        "WHERE email = ?",
+        (row["email"],)
+    )
+    c.commit()
 
-return jsonify(ok=True)
+    return jsonify(ok=True)
 
 @app.post("/api/logout")
 def logout():
