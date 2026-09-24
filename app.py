@@ -183,7 +183,7 @@ def waitlist():
         c.rollback()
         is_new = False
 
-    if true:
+    if True:
         try:
             send_welcome_email(email)
         except Exception as e:
@@ -194,7 +194,7 @@ def waitlist():
         message="Te hemos apuntado a la beta."
     )
 
-@app.post"/api/register")
+@app.post("/api/register")
 def register():
     data = request.get_json() or {}
 
@@ -250,7 +250,7 @@ def register():
 
         return jsonify(
             error="Ese email ya está registrado."
-        ), 409)
+        ), 409
 
 @app.post("/api/login")
 def login():
