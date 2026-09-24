@@ -194,10 +194,10 @@ def waitlist():
         message="Te hemos apuntado a la beta."
     )
 
-
-@app.post("/api/register")
+@app.post"/api/register")
 def register():
     data = request.get_json() or {}
+
     email = str(data.get("email", "")).strip().lower()
     pw = str(data.get("password", ""))
 
@@ -227,16 +227,30 @@ def register():
                 (uid, name, kind)
             )
 
-        c.commit()
-        session["uid"] = uid
+        c.execute(
+            """
+            INSERT INTO beta_testers(email, status)
+            VALUES(?, 'pending')
+            ON CONFLICT (email)
+            DO UPDATE SET status = beta_testers.status
+            """,
+            (email,)
+        )
 
-        return jsonify(ok=True)
+        c.commit()
+
+        return jsonify(
+            ok=True,
+            pending=True,
+            message="Registro completado. Tu acceso está pendiente de aprobación."
+        )
 
     except psycopg.errors.UniqueViolation:
         c.rollback()
+
         return jsonify(
             error="Ese email ya está registrado."
-        ), 409
+        ), 409)
 
 @app.post("/api/login")
 def login():
