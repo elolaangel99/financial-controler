@@ -525,6 +525,7 @@ def admin_page():
                         <th>Accesos</th>
                         <th>Último acceso</th>
                         <th>Registro</th>
+                        <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="testers"></tbody>
@@ -556,19 +557,64 @@ def admin_page():
                 `Total: ${testers.length} · 🟢 Activos: ${active} · 🟠 Pendientes: ${pending}`;
 
             document.getElementById("testers").innerHTML =
-                testers.map(x => `
-                    <tr>
-                        <td>${x.email}</td>
-                        <td class="${x.status}">
-                            ${x.status === "active" ? "🟢 active" : "🟠 pending"}
-                        </td>
-                        <td>${x.access_count}</td>
-                        <td>${x.last_access || "-"}</td>
-                        <td>${x.created_at || "-"}</td>
-                    </tr>
-                `).join("");
+    testers.map(x => `
+        <tr>
+            <td>${x.email}</td>
+
+            <td class="${x.status}">
+                ${x.status === "active"
+                    ? "🟢 active"
+                    : x.status === "blocked"
+                    ? "🔴 blocked"
+                    : "🟠 pending"}
+            </td>
+
+            <td>${x.access_count}</td>
+            <td>${x.last_access || "-"}</td>
+            <td>${x.created_at || "-"}</td>
+
+            <td>
+                ${
+                    x.status !== "active"
+                    ? `<button onclick="updateTester('${x.email}', 'active')">
+                        🟢 Aprobar
+                       </button>`
+                    : ""
+                }
+
+                ${
+                    x.status !== "blocked"
+                    ? `<button onclick="updateTester('${x.email}', 'blocked')">
+                        🔴 Bloquear
+                       </button>`
+                    : ""
+                }
+            </td>
+        </tr>
+    `).join("");
         }
 
+async function updateTester(email, status) {
+    const response = await fetch("/api/admin/beta-testers/update", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            email: email,
+            status: status
+        })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        alert(data.error || "Error actualizando el tester.");
+        return;
+    }
+
+    loadTesters();
+    }
         loadTesters();
         </script>
 
@@ -597,6 +643,42 @@ def admin_beta_testers():
     ).fetchall()
 
     return jsonify(testers=[dict(x) for x in testers])
+    @app.post("/api/admin/beta-testers/update")
+@login_required
+def update_beta_tester():
+    user = db().execute(
+        "SELECT email FROM users WHERE id=?",
+        (session["uid"],)
+    ).fetchone()
+
+    if not user or user["email"] != os.environ.get("ADMIN_EMAIL", "").strip().lower():
+        return jsonify(error="No autorizado"), 403
+
+    data = request.get_json() or {}
+
+    email = str(data.get("email", "")).strip().lower()
+    status = str(data.get("status", "")).strip().lower()
+
+    if status not in ("active", "blocked"):
+        return jsonify(error="Estado no válido."), 400
+
+    c = db()
+
+    updated = c.execute(
+        """
+        UPDATE beta_testers
+        SET status = ?
+        WHERE email = ?
+        """,
+        (status, email)
+    )
+
+    c.commit()
+
+    if updated.rowcount == 0:
+        return jsonify(error="Tester no encontrado."), 404
+
+    return jsonify(ok=True)
 
 if __name__=="__main__":
     app.run(host="0.0.0.0",port=int(os.environ.get("PORT",5000)),debug=False)
