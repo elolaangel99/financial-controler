@@ -1,6 +1,8 @@
 
 from flask import Flask, request, jsonify, session, redirect, render_template, g
 import os, csv, io
+import smtplib
+from email.mime.text import MIMEText
 import psycopg
 from psycopg.rows import dict_row
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -127,25 +129,31 @@ def app_page():
     return render_template("index.html", logged=bool(session.get("uid")))
 
 def send_welcome_email(email):
-    if not RESEND_API_KEY:
-        raise RuntimeError("RESEND_API_KEY no está configurada")
+    gmail_user = os.environ.get("GMAIL_USER")
+    gmail_password = os.environ.get("GMAIL_APP_PASSWORD")
 
-    return resend.Emails.send({
-        "from": "onboarding@resend.dev",
-        "to": [email],
-        "subject": "Bienvenido a Financial Controler 🚀",
-        "html": """
-        <h2>¡Bienvenido a Financial Controler! 🚀</h2>
-        <p>Gracias por apuntarte a nuestra beta.</p>
-        <p>Te avisaremos cuando puedas empezar a utilizar la aplicación.</p>
-        <p>Estamos construyendo una herramienta sencilla para ayudarte a controlar
-        tus ingresos, gastos, presupuestos, objetivos e inversiones.</p>
-        <br>
-        <p>¡Gracias por confiar en nosotros!</p>
-        <p><strong>Financial Controler</strong></p>
-        """
-    })
+    if not gmail_user or not gmail_password:
+        raise RuntimeError("GMAIL_USER o GMAIL_APP_PASSWORD no están configurados")
 
+    msg = MIMEText("""
+    <h2>¡Bienvenido a Financial Controler! 🚀</h2>
+    <p>Gracias por apuntarte a nuestra beta.</p>
+    <p>Te avisaremos cuando puedas empezar a utilizar la aplicación.</p>
+    <p>Estamos construyendo una herramienta sencilla para ayudarte a controlar
+    tus ingresos, gastos, presupuestos, objetivos e inversiones.</p>
+    <br>
+    <p>¡Gracias por confiar en nosotros!</p>
+    <p><strong>Financial Controler</strong></p>
+    """, "html", "utf-8")
+
+    msg["Subject"] = "Bienvenido a Financial Controler 🚀"
+    msg["From"] = gmail_user
+    msg["To"] = email
+
+    with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as server:
+        server.starttls()
+        server.login(gmail_user, gmail_password.replace(" ", ""))
+        server.sendmail(gmail_user, [email], msg.as_string())
 
 @app.post("/api/waitlist")
 def waitlist():
