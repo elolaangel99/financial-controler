@@ -402,7 +402,149 @@ def import_csv():
             added+=1
         except Exception: pass
     db().commit(); return jsonify(added=added)
+@app.get("/admin")
+@login_required
+def admin_page():
+    user = db().execute(
+        "SELECT email FROM users WHERE id=?",
+        (session["uid"],)
+    ).fetchone()
 
+    if not user or user["email"] != os.environ.get("ADMIN_EMAIL", "").strip().lower():
+        return "No autorizado", 403
+
+    return """
+    <!doctype html>
+    <html lang="es">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Financial Controler - Beta</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 20px;
+                background: #f5f5f5;
+            }
+            .card {
+                background: white;
+                padding: 20px;
+                border-radius: 14px;
+                margin-bottom: 20px;
+                box-shadow: 0 2px 10px rgba(0,0,0,.08);
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+            th, td {
+                padding: 10px;
+                border-bottom: 1px solid #ddd;
+                text-align: left;
+            }
+            .pending {
+                color: orange;
+                font-weight: bold;
+            }
+            .active {
+                color: green;
+                font-weight: bold;
+            }
+        </style>
+    </head>
+    <body>
+
+        <h1>🧪 Beta testers</h1>
+
+        <div class="card">
+            <h2>Resumen</h2>
+            <p id="summary">Cargando...</p>
+        </div>
+
+        <div class="card">
+            <h2>Testers</h2>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Estado</th>
+                        <th>Accesos</th>
+                        <th>Último acceso</th>
+                        <th>Registro</th>
+                    </tr>
+                </thead>
+                <tbody id="testers"></tbody>
+            </table>
+        </div>
+
+        <script>
+        async function loadTesters() {
+            const response = await fetch("/api/admin/beta-testers");
+            const data = await response.json();
+
+            if (!response.ok) {
+                document.getElementById("summary").textContent =
+                    data.error || "Error";
+                return;
+            }
+
+            const testers = data.testers || [];
+
+            const active = testers.filter(
+                x => x.status === "active"
+            ).length;
+
+            const pending = testers.filter(
+                x => x.status === "pending"
+            ).length;
+
+            document.getElementById("summary").textContent =
+                `Total: ${testers.length} · 🟢 Activos: ${active} · 🟠 Pendientes: ${pending}`;
+
+            document.getElementById("testers").innerHTML =
+                testers.map(x => `
+                    <tr>
+                        <td>${x.email}</td>
+                        <td class="${x.status}">
+                            ${x.status === "active" ? "🟢 active" : "🟠 pending"}
+                        </td>
+                        <td>${x.access_count}</td>
+                        <td>${x.last_access || "-"}</td>
+                        <td>${x.created_at || "-"}</td>
+                    </tr>
+                `).join("");
+        }
+
+        loadTesters();
+        </script>
+
+    </body>
+    </html>
+    """
+
+
+@app.get("/api/admin/beta-testers")
+@login_required
+def admin_beta_testers():
+    user = db().execute(
+        "SELECT email FROM users WHERE id=?",
+        (session["uid"],)
+    ).fetchone()
+
+    if not user or user["email"] != os.environ.get("ADMIN_EMAIL", "").strip().lower():
+        return jsonify(error="No autorizado"), 403
+
+    testers = db().execute(
+        """
+        SELECT email, status, access_count, last_access, created_at
+        FROM beta_testers
+        ORDER BY created_at DESC
+        """
+    ).fetchall()
+
+    return jsonify(testers=[dict(x) for x in testers])
 
 if __name__=="__main__":
     app.run(host="0.0.0.0",port=int(os.environ.get("PORT",5000)),debug=False)
