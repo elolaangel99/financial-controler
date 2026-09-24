@@ -655,8 +655,30 @@ async function updateTester(email, status) {
 
     loadTesters();
     }
-        loadTesters();
-        </script>
+        async function loadFeedback() {
+    const response = await fetch("/api/admin/feedback");
+    const data = await response.json();
+
+    if (!response.ok) {
+        return;
+    }
+
+    const feedback = data.feedback || [];
+
+    document.getElementById("feedback").innerHTML =
+        feedback.map(x => `
+            <tr>
+                <td>${x.email}</td>
+                <td>${"⭐".repeat(x.rating)}</td>
+                <td>${x.message}</td>
+                <td>${x.created_at || "-"}</td>
+            </tr>
+        `).join("");
+}
+
+loadFeedback();
+loadTesters();
+</script>
 
     </body>
     </html>
