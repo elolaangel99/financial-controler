@@ -557,6 +557,20 @@ def admin_page():
                 <tbody id="testers"></tbody>
             </table>
         </div>
+        <div class="card">
+    <h2>💬 Feedback de usuarios</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Email</th>
+                <th>Valoración</th>
+                <th>Comentario</th>
+                <th>Fecha</th>
+            </tr>
+        </thead>
+        <tbody id="feedback"></tbody>
+    </table>
+</div>
 
         <script>
         async function loadTesters() {
