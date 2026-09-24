@@ -16,7 +16,9 @@ body{margin:0}.wrap{max-width:980px;margin:auto;padding:18px}.top{background:#11
 </div></div>
 <div class="modal" id="modal"><div class="sheet"><button class="btn" id="close">Cerrar</button><div id="form"></div></div></div>
 <script>
-const $ = (id) => document.getElementById(id);
+document.getElementById("feedbackBtn").addEventListener("click", () => {
+    alert("Gracias por probar Financial Controler. Próximamente podrás enviarnos tu feedback.");
+}); const $ = (id) => document.getElementById(id);
 const eur = (n) => new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(Number(n)||0);
 let state = null;
 
