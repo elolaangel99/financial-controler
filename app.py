@@ -455,6 +455,33 @@ def import_csv():
             added+=1
         except Exception: pass
     db().commit(); return jsonify(added=added)
+    @app.post("/api/feedback")
+@login_required
+def add_feedback():
+    data = request.get_json() or {}
+
+    rating = int(data.get("rating", 0))
+    message = str(data.get("message", "")).strip()
+
+    if rating < 1 or rating > 5:
+        return jsonify(error="La valoración debe estar entre 1 y 5."), 400
+
+    if not message:
+        return jsonify(error="Escribe un comentario."), 400
+
+    c = db()
+
+    c.execute(
+        """
+        INSERT INTO feedback(user_id, rating, message)
+        VALUES(?, ?, ?)
+        """,
+        (session["uid"], rating, message)
+    )
+
+    c.commit()
+
+    return jsonify(ok=True)
 @app.get("/admin")
 @login_required
 def admin_page():
