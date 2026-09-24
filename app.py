@@ -643,7 +643,7 @@ def admin_beta_testers():
     ).fetchall()
 
     return jsonify(testers=[dict(x) for x in testers])
-    @app.post("/api/admin/beta-testers/update")
+@app.post("/api/admin/beta-testers/update")
 @login_required
 def update_beta_tester():
     user = db().execute(
