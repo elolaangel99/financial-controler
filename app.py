@@ -455,7 +455,7 @@ def import_csv():
             added+=1
         except Exception: pass
     db().commit(); return jsonify(added=added)
-    @app.post("/api/feedback")
+@app.post("/api/feedback")
 @login_required
 def add_feedback():
     data = request.get_json() or {}
@@ -469,9 +469,7 @@ def add_feedback():
     if not message:
         return jsonify(error="Escribe un comentario."), 400
 
-    c = db()
-
-    c.execute(
+    db().execute(
         """
         INSERT INTO feedback(user_id, rating, message)
         VALUES(?, ?, ?)
@@ -479,7 +477,7 @@ def add_feedback():
         (session["uid"], rating, message)
     )
 
-    c.commit()
+    db().commit()
 
     return jsonify(ok=True)
 @app.get("/admin")
