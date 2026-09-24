@@ -183,7 +183,7 @@ def waitlist():
         c.rollback()
         is_new = False
 
-    if is_new:
+    if true:
         try:
             send_welcome_email(email)
         except Exception as e:
