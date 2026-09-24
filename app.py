@@ -256,9 +256,11 @@ def register():
 def login():
     data = request.get_json() or {}
 
+    email = str(data.get("email", "")).strip().lower()
+
     row = db().execute(
         "SELECT * FROM users WHERE email=?",
-        (str(data.get("email", "")).strip().lower(),)
+        (email,)
     ).fetchone()
 
     if not row or not check_password_hash(
@@ -267,16 +269,44 @@ def login():
     ):
         return jsonify(error="Credenciales incorrectas."), 401
 
+    # El administrador puede acceder siempre
+    admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
+
+    if email != admin_email:
+        beta = db().execute(
+            "SELECT status FROM beta_testers WHERE email=?",
+            (email,)
+        ).fetchone()
+
+        if not beta:
+            return jsonify(
+                error="Este usuario no está registrado en la beta."
+            ), 403
+
+        if beta["status"] == "pending":
+            return jsonify(
+                error="Tu acceso a la beta está pendiente de aprobación."
+            ), 403
+
+        if beta["status"] == "blocked":
+            return jsonify(
+                error="Tu acceso a la beta está bloqueado."
+            ), 403
+
+        if beta["status"] != "active":
+            return jsonify(
+                error="Tu acceso a la beta no está activo."
+            ), 403
+
     session["uid"] = row["id"]
 
     c = db()
     c.execute(
         "UPDATE beta_testers "
         "SET access_count = access_count + 1, "
-        "last_access = CURRENT_TIMESTAMP, "
-        "status = 'active' "
+        "last_access = CURRENT_TIMESTAMP "
         "WHERE email = ?",
-        (row["email"],)
+        (email,)
     )
     c.commit()
 
