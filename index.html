@@ -58,6 +58,7 @@ document.getElementById('feedbackBtn').addEventListener('click', () => {
         }
     });
 });
+const $ = (id) => document.getElementById(id);    
 const eur = (n) => new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(Number(n)||0);
 let state = null;
 
